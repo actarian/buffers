@@ -1,0 +1,220 @@
+@import "services/vars";
+html,
+body {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	margin: 0;
+	padding: 0;
+	background: $background;
+	color: $text;
+	font-family: Courier New, Courier, monospace;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.content,
+.shader,
+.error {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	box-sizing: border-box;
+	background: $background;
+	color: $text;
+}
+
+.shader {
+	border: 0 solid $background;
+}
+
+.tools {
+	position: absolute;
+	width: auto;
+	height: 34px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	bottom: 20px;
+	left: 50%;
+	transform: translateX(-50%);
+	border-radius: 6px;
+	background: rgba($tools, .7);
+	opacity: 0;
+	transition: opacity ease-in-out 250ms;
+	.btn {
+		width: 34px;
+		height: 34px;
+		-webkit-appearance: none;
+		background: transparent;
+		border: 0;
+		outline: 0 !important;
+		padding: 0;
+		color: white;
+		cursor: pointer;
+		font-size: 14px;
+		transform: scale3d(0.80, 0.80, 0.80);
+		transition: transform ease-in-out 150ms;
+		&:hover,
+		&.active {
+			transform: scale3d(1.0, 1.0, 1.0);
+		}
+	}
+	.btn+.btn {
+		margin-left: 6px;
+	}
+	.btn-record {
+		&.active {
+			color: $record;
+		}
+	}
+}
+
+.errors {
+	display: none;
+	position: absolute;
+	top: 0;
+	width: 100%;
+	min-height: 100%;
+	background: $errors;
+	&.active {
+		display: block;
+	}
+}
+
+.welcome {
+	display: none;
+	position: absolute;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	justify-content: center;
+	align-items: center;
+	background: $background;
+	&.active {
+		display: flex;
+	}
+	.welcome-content {
+		text-align: center;
+	}
+}
+
+.btn-create {
+	-webkit-appearance: none;
+	background: $create;
+	color: $text;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 16px;
+	padding: 6px 15px;
+	border-radius: 6px;
+	border: 0;
+	text-decoration: none;
+	outline: 0 !important;
+	cursor: pointer;
+	transition: all ease-in-out 250ms;
+	&:hover,
+	&:active,
+	&:focus {
+		background: darken($create, 5%);
+		box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
+	}
+}
+
+.errors-content {
+	width: calc(100% - 30px);
+	height: auto;
+	min-height: 100%;
+	padding: 15px;
+	ul {
+		list-style: none;
+		padding: 0;
+	}
+	li {
+		padding: 0;
+		a,
+		a:hover,
+		a:visited,
+		a:link {
+			color: unset;
+			text-decoration: none;
+		}
+	}
+	.error,
+	.warning {
+		display: flex;
+		border: 0px solid $text;
+		justify-content: flex-start;
+		align-items: center;
+		line-height: 1;
+		padding: 5px;
+		margin-bottom: 5px;
+		font-size: 11px;
+		cursor: pointer;
+		transition: ease-in-out 250ms background-color;
+		span {
+			display: inline-block;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			padding: 2px;
+		}
+	}
+	.error {
+		background-color: rgba($error, .2);
+		border-color: rgba($error, .3);
+		.line {
+			color: $error;
+		}
+		&:hover {
+			background-color: rgba($error, .3);
+		}
+	}
+	.warning {
+		background-color: rgba($warning, .2);
+		border-color: rgba($warning, .3);
+		.line {
+			color: $warning;
+		}
+		&:hover {
+			background-color: rgba($warning, .3);
+		}
+	}
+	.line {
+		color: $line;
+		flex: 0 0 124px;
+	}
+	.value {
+		color: $value;
+		flex: 0 0 74px;
+	}
+	.text {
+		color: $text;
+		flex: 1 0 300px;
+	}
+}
+
+[unselectable] {
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+@import "services/gui/gui";
+.dg {
+	opacity: 0;
+	transition: opacity ease-in-out 250ms;
+}
+
+body {
+	&.idle,
+	&.empty {
+		.stats {
+			visibility: hidden;
+		}
+	}
+
+	&:not(.idle):hover {
+		.tools, .dg {
+			opacity: 1;
+		}
+	}
+}

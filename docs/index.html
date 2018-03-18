@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>vscode-glsl-canvas playground</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/img/favicon-16x16.png">
+    <link rel="manifest" href="/img/site.webmanifest">
+    <link rel="mask-icon" href="/img/safari-pinned-tab.svg" color="#5bbad5">
+    <link rel="shortcut icon" href="/img/favicon.ico">
+    <meta name="msapplication-TileColor" content="#603cba">
+    <meta name="msapplication-config" content="/img/browserconfig.xml">
+    <meta name="theme-color" content="#ffffff">
+    <link href="css/vendors.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Cousine" rel="stylesheet">
+    <link href="css/app.min.css" rel="stylesheet">
+    <script id="fragment" type="x-shader/x-fragment">
+    #ifdef GL_ES
+        precision mediump float;
+    #endif
+
+    uniform vec2 u_resolution;
+    uniform float u_time;
+
+    // buffer_a
+
+    // buffer_b
+
+    // main
+
+    void main() {
+        vec3 color = vec3(1.0, 0.0, 0.0);
+        // vec3 color = vec3(abs(cos(gl_FragCoord.x / u_resolution.x)), abs(sin(gl_FragCoord.y / u_resolution.y)), abs(sin(u_time)));
+        gl_FragColor = vec4(color, 1.0);
+    }
+</script>
+</head>
+
+<body class="idle">
+    <div class="content">
+        <canvas class="shader"></canvas>
+    </div>
+    <div class="errors"></div>
+    <div class="welcome">
+        <div class="welcome-content" unselectable>
+            <p>no fragment shader</p>
+        </div>
+    </div>
+</body>
+<script src="js/vendors.min.js"></script>
+<script src="js/app.min.js"></script>
+
+</html>
