@@ -17,26 +17,6 @@
     <link href="css/vendors.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css?family=Cousine" rel="stylesheet">
     <link href="css/app.min.css" rel="stylesheet">
-    <script id="fragment" type="x-shader/x-fragment">
-    #ifdef GL_ES
-        precision mediump float;
-    #endif
-
-    uniform vec2 u_resolution;
-    uniform float u_time;
-
-    // buffer_a
-
-    // buffer_b
-
-    // main
-
-    void main() {
-        vec3 color = vec3(1.0, 0.0, 0.0);
-        // vec3 color = vec3(abs(cos(gl_FragCoord.x / u_resolution.x)), abs(sin(gl_FragCoord.y / u_resolution.y)), abs(sin(u_time)));
-        gl_FragColor = vec4(color, 1.0);
-    }
-</script>
 </head>
 
 <body class="idle">
