@@ -35,10 +35,13 @@
             return new GlslCanvas(canvas, options);
         }
 
-        GlslCanvas.prototype.render = render;
-        GlslCanvas.prototype.uniform = uniform;
         GlslCanvas.prototype.loadBuffers = loadBuffers;
-
+        GlslCanvas.prototype.loadUniforms = loadUniforms;
+        GlslCanvas.prototype.updateVariables = updateVariables;
+        GlslCanvas.prototype.updateUniforms = updateUniforms;
+        GlslCanvas.prototype.updateBuffers = updateBuffers;
+        GlslCanvas.prototype.uniform = uniform;
+        GlslCanvas.prototype.render = render;
         /*
         function createFrameBuffer(gl, i, W, H) {
             gl.activeTexture(gl.TEXTURE0 + i);
@@ -61,10 +64,11 @@
 
         function loadBuffers(buffers) {
             var glsl = this,
-                gl = glsl.gl, i = 0;
+                gl = glsl.gl,
+                i = 0;
             glsl.buffers = {};
-
             gl.bundle = function (program, i, W, H) {
+                gl.useProgram(program);
                 var texture = gl.createTexture();
                 var buffer = gl.createFramebuffer();
                 var uniform = gl.getUniformLocation(program, "u_buffer_" + i);
@@ -78,7 +82,8 @@
                     texture: texture,
                     buffer: buffer,
                     uniform: uniform,
-                    bind: function () {
+                    link: function () {
+                        gl.useProgram(program);
                         gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
                         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
                         /*
@@ -86,17 +91,15 @@
                         */
                         gl.viewport(0, 0, W, H);
                         /*
-                // draw first pass, the one which supposed to write data for the channel 0
-                // it'll use fragment shader for bufferA
-                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-                // pass texture as channel 0
-                */
+                        // draw first pass, the one which supposed to write data for the channel i
+                        // it'll use fragment shader for bufferA
+                        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+                        // pass texture as channel i
+                        */
                         gl.activeTexture(gl.TEXTURE0 + i);
                         gl.bindTexture(gl.TEXTURE_2D, texture);
-                        gl.uniform1i(uniform, 0);
-
-                        // draw second pass, the one with uses channel 0
+                        // draw second pass, the one with uses channel i
                         // There 're a lot of materials about rendering to texture, for example here.
                     }
                 };
@@ -119,7 +122,7 @@
 
                 // buffer.frame = createFrameBuffer(gl, i, glsl.canvas.width, glsl.canvas.height);
                 buffer.bundle = gl.bundle(program, i, glsl.canvas.width, glsl.canvas.height);
-                console.log('buffer.fragment', i, buffer.fragment, buffer.bundle);
+                // console.log(i, key, buffer.common + buffer.fragment, buffer.bundle);
 
                 // console.log('buffer', buffer);
                 glsl.buffers[key] = buffer;
@@ -146,10 +149,99 @@
             */
         }
 
-        // ex: program.uniform('3f', 'position', x, y, z);
-        function uniform(method, type, name) { // 'value' is a method-appropriate arguments list
+        function loadUniforms(options) {
+            if (options.textures) {
+                for (var key in options.textures) {
+                    glsl.uniformTexture('u_texture_' + key, options.textures[key], {
+                        filtering: 'mipmap',
+                        repeat: true,
+                    });
+                }
+            }
+        }
+
+        function updateVariables() {
+            var glsl = this,
+                gl = glsl.gl;
+            var date = new Date();
+            var now = performance.now();
+            glsl.variables = glsl.variables || {};
+            glsl.variables.prev = glsl.variables.prev || now;
+            glsl.variables.delta = (now - glsl.variables.prev) / 1000.0;
+            glsl.variables.prev = now;
+            glsl.variables.load = glsl.timeLoad;
+            glsl.variables.time = (now - glsl.timeLoad) / 1000.0;
+            glsl.variables.year = date.getFullYear();
+            glsl.variables.month = date.getMonth();
+            glsl.variables.date = date.getDate();
+            glsl.variables.daytime = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds() + date.getMilliseconds() * 0.001;
+        }
+
+        function updateUniforms(program, key) {
+            var glsl = this,
+                gl = glsl.gl;
+
+            /*
+            // if (glsl.nDelta > 1) {
+            // set the delta time uniform
+            glsl.uniform(program, '1f', 'float', 'u_delta', glsl.variables.delta);
+            // }
+            */
+
+            // if (glsl.nTime > 1) {
+            // set the elapsed time uniform
+            // var u_time = glsl.uniform(program, '1f', 'float', 'u_time', glsl.variables.time);
+            gl.uniform1f(gl.getUniformLocation(program, 'u_time'), glsl.variables.time);
+            // }
+
+            /*
+            // if (glsl.nDate) {
+            // Set date uniform: year/month/day/time_in_sec
+            glsl.uniform(program, '4f', 'float', 'u_date', glsl.variables.year, glsl.variables.month, glsl.variables.date, glsl.variables.daytime);
+            // }
+            */
+
+            // set the resolution uniform
+            // var u_reolution = glsl.uniform(program, '2f', 'vec2', 'u_resolution', glsl.canvas.width, glsl.canvas.height);
+            gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), glsl.canvas.width, glsl.canvas.height);
+
+            var i = 0;
+            for (var p in glsl.buffers) {
+                gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i); // texture unit 0
+                i++;
+            }
+            // console.log('updateUniforms', glsl.variables.time);
+
+            /*
+            glsl.texureIndex = 0;
+            for (var key in glsl.textures) {
+                glsl.uniformTexture(key, {
+                    filtering: 'mipmap',
+                    repeat: true,
+                });
+            }
+            */
+
+            /*
+            var i = 0,
+                au = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+            while (i < au) {
+                var info = gl.getActiveUniform(program, i);
+                console.log('info', key, info);
+                i++;
+            }
+            console.log('status', key, 'link', gl.getProgramParameter(program, gl.LINK_STATUS), 'validate', gl.getProgramParameter(program, gl.VALIDATE_STATUS));
+            */
+
+            // console.log(key, 'u_time', u_time.location);
+
+        }
+
+        function uniform(program, method, type, name) {
+            var glsl = this,
+                gl = glsl.gl;
             var value = Array.prototype.slice.call(arguments).slice(3);
-            var glsl = this, gl = glsl.gl;
+            glsl.uniforms = glsl.uniforms || {};
             glsl.uniforms[name] = glsl.uniforms[name] || {};
             var uniform = glsl.uniforms[name];
             var change = true; // isDiff(uniform.value, value);
@@ -158,85 +250,40 @@
                 uniform.value = value;
                 uniform.type = type;
                 uniform.method = 'uniform' + method;
-                uniform.location = gl.getUniformLocation(glsl.program, name);
+                uniform.location = gl.getUniformLocation(program, name);
                 gl[uniform.method].apply(gl, [uniform.location].concat(uniform.value));
-                // TODO RENDER MULTIPLE BUFFERS            
-                if (glsl.buffers && Object.keys(glsl.buffers).length > 0) {
-                    for (var key in glsl.buffers) {
-                        var buffer = glsl.buffers[key];
-                        uniform.location = gl.getUniformLocation(buffer.program, name);
-                        gl[uniform.method].apply(gl, [uniform.location].concat(uniform.value));
-                        console.log(buffer, uniform);
-                    }
+            }
+            return uniform;
+        }
+
+        function updateBuffers() {
+            var glsl = this,
+                gl = glsl.gl;
+            if (glsl.buffers && Object.keys(glsl.buffers).length > 0) {
+                for (var key in glsl.buffers) {
+                    var buffer = glsl.buffers[key];
+                    gl.useProgram(buffer.program);
+                    glsl.updateUniforms(buffer.program, key);
+                    buffer.bundle.link();
+                    // gl.bindFramebuffer(gl.FRAMEBUFFER, buffer.bundle.buffer);
+                    gl.drawArrays(gl.TRIANGLES, 0, 6);
                 }
+                gl.useProgram(glsl.program);
+                glsl.updateUniforms(glsl.program, 'main');
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
             }
         }
 
         function render() {
             var glsl = this,
                 gl = glsl.gl;
-
             glsl.visible = isCanvasVisible(glsl.canvas);
+            glsl.animated = true;
             if (glsl.forceRender || (glsl.animated && glsl.visible && !glsl.paused)) {
-                var date = new Date();
-                var now = performance.now();
-                glsl.timeDelta = (now - glsl.timePrev) / 1000.0;
-                glsl.timePrev = now;
-                if (glsl.nDelta > 1) {
-                    // set the delta time uniform
-                    glsl.uniform('1f', 'float', 'u_delta', glsl.timeDelta);
-                }
-
-                if (glsl.nTime > 1) {
-                    // set the elapsed time uniform
-                    glsl.uniform('1f', 'float', 'u_time', (now - glsl.timeLoad) / 1000.0);
-                }
-
-                if (glsl.nDate) {
-                    // Set date uniform: year/month/day/time_in_sec
-                    glsl.uniform('4f', 'float', 'u_date', date.getFullYear(), date.getMonth(), date.getDate(), date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds() + date.getMilliseconds() * 0.001);
-                }
-
-                // set the resolution uniform
-                glsl.uniform('2f', 'vec2', 'u_resolution', glsl.canvas.width, glsl.canvas.height);
-
-                glsl.texureIndex = 0;
-                for (var tex in glsl.textures) {
-                    glsl.uniformTexture(tex);
-                }
-
-                // TODO RENDER MULTIPLE BUFFERS            
-                if (glsl.buffers && Object.keys(glsl.buffers).length > 0) {
-                    for (var key in glsl.buffers) {
-                        var buffer = glsl.buffers[key];
-                        /*
-                        glsl.uniformTexture(key, buffer.frame[0], {
-                            filtering: 'mipmap',
-                            repeat: true,
-                        });
-                        */
-                        /*
-                        glsl.uniform('1i', 'sampler2D', key, i);
-                        glsl.textures[name].bind(this.texureIndex);
-                        glsl.uniform('2f', 'vec2', name + 'Resolution', this.textures[name].width, this.textures[name].height);
-                        glsl.texureIndex++;
-                        */
-                        gl.useProgram(buffer.program);
-                        // gl.binder(buffer.frame[1]);
-                        buffer.bundle.bind();
-                        // gl.bindFramebuffer(gl.FRAMEBUFFER, buffer.bundle.buffer);
-                        gl.drawArrays(gl.TRIANGLES, 0, 6);
-                        // console.log(key);
-                    }
-                    gl.useProgram(glsl.program);
-                    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-                    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-                }
-
-                // Draw the rectangle.
+                glsl.updateVariables();
+                glsl.updateBuffers();
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
-                // Trigger event
-
                 glsl.trigger('render', {});
                 glsl.change = false;
                 glsl.forceRender = false;
@@ -250,7 +297,6 @@
             gl.compileShader(shader);
             var compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
             if (!compiled) {
-                // Something went wrong during compilation; get the error
                 var lastError = gl.getShaderInfoLog(shader);
                 console.error('*** Error compiling shader ' + shader + ':' + lastError);
                 glsl.trigger('error', {
@@ -267,25 +313,20 @@
 
         function createProgram(glsl, shaders, optAttribs, optLocations) {
             var gl = glsl.gl;
-            var ii;
+            var i;
             var program = gl.createProgram();
-            for (ii = 0; ii < shaders.length; ++ii) {
-                gl.attachShader(program, shaders[ii]);
+            for (i = 0; i < shaders.length; ++i) {
+                gl.attachShader(program, shaders[i]);
             }
             if (optAttribs) {
-                for (ii = 0; ii < optAttribs.length; ++ii) {
-                    gl.bindAttribLocation(
-                        program,
-                        optLocations ? optLocations[ii] : ii,
-                        optAttribs[ii]);
+                for (i = 0; i < optAttribs.length; ++i) {
+                    gl.bindAttribLocation(program, optLocations ? optLocations[i] : i, optAttribs[i]);
                 }
             }
             gl.linkProgram(program);
-            // Check the link status
             var linked = gl.getProgramParameter(program, gl.LINK_STATUS);
             if (!linked) {
-                // something went wrong with the link
-                lastError = gl.getProgramInfoLog(program);
+                var lastError = gl.getProgramInfoLog(program);
                 console.log('Error in program linking:' + lastError);
                 gl.deleteProgram(program);
                 return null;
@@ -347,6 +388,7 @@
             preserveDrawingBuffer: true,
             backgroundColor: 'rgba(1,1,1,1)',
         });
+        glsl.animated = true;
         glsl.on('error', onGlslError);
         glsl.on('render', function () {
             glsl.forceRender = true;
@@ -367,14 +409,7 @@
             }
             glsl.load(options.fragment, options.vertex);
             glsl.loadBuffers(options.buffers);
-            if (options.textures) {
-                for (var t in options.textures) {
-                    glsl.uniformTexture('u_texture_' + t, options.textures[t], {
-                        filtering: 'mipmap',
-                        repeat: true,
-                    });
-                }
-            }
+            glsl.loadUniforms(options);
             // console.log('glsl', glsl);
             /*
             gui.load(options.uniforms);
