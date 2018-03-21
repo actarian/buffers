@@ -14,7 +14,15 @@
         GlslCanvas.prototype.updateVariables = updateVariables;
         GlslCanvas.prototype.updateUniforms = updateUniforms;
         GlslCanvas.prototype.updateBuffers = updateBuffers;
+        GlslCanvas.prototype.resizeBuffers = resizeBuffers;
         GlslCanvas.prototype.render = render;
+
+        var _setMouse = GlslCanvas.prototype.setMouse;
+        GlslCanvas.prototype.setMouse = setMouse;
+
+        var _resize = GlslCanvas.prototype.resize;
+        GlslCanvas.prototype.resize = resize;
+
         // GlslCanvas.prototype.uniform = uniform;
 
         function loadBuffers(buffers) {
@@ -24,27 +32,37 @@
             glsl.buffers = {};
             gl.bundle = function (program, i, W, H) {
                 gl.useProgram(program);
-                var texture = gl.createTexture();
-                var buffer = gl.createFramebuffer();
-                gl.bindTexture(gl.TEXTURE_2D, texture);
+                var textureOut = gl.createTexture();
+                gl.activeTexture(gl.TEXTURE0 + i * 2); //           <-- out activate
+                gl.bindTexture(gl.TEXTURE_2D, textureOut);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                var textureIn = gl.createTexture();
+                gl.activeTexture(gl.TEXTURE0 + i * 2 + 1); //                   <-- in activate
+                gl.bindTexture(gl.TEXTURE_2D, textureIn);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                var buffer = gl.createFramebuffer();
                 return {
-                    texture: texture,
-                    buffer: buffer,
+                    textureIn: textureIn,
+                    textureOut: textureOut,
                     draw: function () {
                         gl.useProgram(program);
                         gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
-                        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+                        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textureOut, 0);
                         gl.viewport(0, 0, W, H);
-                        gl.activeTexture(gl.TEXTURE0 + i);
-                        gl.bindTexture(gl.TEXTURE_2D, texture);
-                        // gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, 0);
-                        gl.drawArrays(gl.TRIANGLES, 0, 6);
-                        // gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                        gl.activeTexture(gl.TEXTURE0 + i * 2); //           <-- out activate
+                        gl.bindTexture(gl.TEXTURE_2D, textureOut); //       <-- out bind
+                        gl.drawArrays(gl.TRIANGLES, 0, 6); //               <-- out draw
+                        gl.activeTexture(gl.TEXTURE0 + i * 2 + 1); //                   <-- in activate
+                        gl.bindTexture(gl.TEXTURE_2D, textureIn); //                    <-- in bind
+                        gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, W, H, 0); // <-- in copy
                     }
                 };
             };
@@ -68,6 +86,40 @@
                 i++;
             }
             gl.deleteShader(vertex);
+        }
+
+        function resize() {
+            var glsl = this;
+            var flag = _resize.apply(glsl);
+            if (flag) {
+                glsl.resizeBuffers();
+            }
+            return flag;
+        }
+
+        function resizeBuffers() {
+            var glsl = this,
+                gl = glsl.gl;
+            if (glsl.buffers && Object.keys(glsl.buffers).length > 0) {
+                var i = 0,
+                    W = gl.canvas.width,
+                    H = gl.canvas.height;
+                gl.viewport(0, 0, W, H);
+                for (var key in glsl.buffers) {
+                    var buffer = glsl.buffers[key];
+                    gl.useProgram(buffer.program);
+                    // 
+                    gl.activeTexture(gl.TEXTURE0 + i * 2);
+                    gl.bindTexture(gl.TEXTURE_2D, buffer.bundle.textureOut);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                    // 
+                    gl.activeTexture(gl.TEXTURE0 + i * 2 + 1);
+                    gl.bindTexture(gl.TEXTURE_2D, buffer.bundle.textureIn);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                    i++;
+                }
+                gl.useProgram(glsl.program);
+            }
         }
 
         function loadUniforms(options) {
@@ -125,7 +177,7 @@
                 program.buffers = program.buffers || {};
                 if (!program.buffers["u_buffer_" + i]) {
                     program.buffers["u_buffer_" + i] = true;
-                    gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i);
+                    gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i * 2 + 1);
                 }
                 i++;
             }
@@ -155,26 +207,26 @@
 
         }
 
-        /*
-        function uniform(program, method, type, name) {
+        function setMouse(mouse) {
+            // _setMouse(mouse);
             var glsl = this,
                 gl = glsl.gl;
-            var value = Array.prototype.slice.call(arguments).slice(3);
-            glsl.uniforms = glsl.uniforms || {};
-            glsl.uniforms[name] = glsl.uniforms[name] || {};
-            var uniform = glsl.uniforms[name];
-            var change = true; // isDiff(uniform.value, value);
-            if (change || glsl.change || uniform.location === undefined || uniform.value === undefined) {
-                uniform.name = name;
-                uniform.value = value;
-                uniform.type = type;
-                uniform.method = 'uniform' + method;
-                uniform.location = gl.getUniformLocation(program, name);
-                gl[uniform.method].apply(gl, [uniform.location].concat(uniform.value));
+            var rect = this.canvas.getBoundingClientRect();
+            if (mouse && mouse.x && mouse.x >= rect.left && mouse.x <= rect.right && mouse.y && mouse.y >= rect.top && mouse.y <= rect.bottom) {
+                var x = mouse.x - rect.left;
+                var y = this.canvas.height - (mouse.y - rect.top);
+                // this.uniform('2f', 'vec2', 'u_mouse', x, y);
+                if (glsl.buffers && Object.keys(glsl.buffers).length > 0) {
+                    for (var key in glsl.buffers) {
+                        var buffer = glsl.buffers[key];
+                        gl.useProgram(buffer.program);
+                        gl.uniform2f(gl.getUniformLocation(buffer.program, 'u_mouse'), x, y);
+                    }
+                }
+                gl.useProgram(glsl.program);
+                gl.uniform2f(gl.getUniformLocation(glsl.program, 'u_mouse'), x, y);
             }
-            return uniform;
-        }   
-        */
+        }
 
         function updateBuffers() {
             var glsl = this,

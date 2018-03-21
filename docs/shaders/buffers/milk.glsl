@@ -9,9 +9,30 @@ uniform float u_time;
 uniform sampler2D u_buffer_0;
 uniform sampler2D u_buffer_1;
 
+vec2 coord(in vec2 p) {
+    p = p / u_resolution.xy;
+    if (u_resolution.x > u_resolution.y) {
+        p.x *= u_resolution.x / u_resolution.y;
+        p.x += (u_resolution.y - u_resolution.x) / u_resolution.y / 2.0;
+    } else {
+        p.y *= u_resolution.y / u_resolution.x;
+        p.y += (u_resolution.x - u_resolution.y) / u_resolution.x / 2.0;
+    }
+    p -= 0.5;
+    p *= vec2(-1.0, 1.0);
+    return p;
+}
+
+#define st coord(gl_FragCoord.xy)
+#define mx coord(u_mouse)
+#define rx 1.0 / min(u_resolution.x, u_resolution.y)
+#define ts abs(sin(u_time))
+
 #define HEIGHTMAPSCALE 90.0
 #define MARCHSTEPS 25
-#define RAYMARCH 1
+// #define RAYMARCH
+
+// https://www.shadertoy.com/view/Msy3D1
 
 vec3 getRay(in vec2 p, out vec3 pos) {
     float radius = 60.0;
@@ -37,18 +58,7 @@ vec3 getRay(in vec2 p, out vec3 pos) {
 	return ray;
 }
 
-float getRipple() {
-    vec3 e = vec3(vec2(1.0) / u_resolution.xy, 0.0);
-    vec2 q = gl_FragCoord.xy / u_resolution.xy;
-    vec4 c; float p10; float p01; float p21; float p12;
-    /*
-    c = texture2D(u_buffer_0, q, 0.0); // 0
-    p10 = texture2D(u_buffer_1, q - e.zy, 0.0).x; // 1
-    p01 = texture2D(u_buffer_1, q - e.xz, 0.0).x; // 1
-    p21 = texture2D(u_buffer_1, q + e.xz, 0.0).x; // 1
-    p12 = texture2D(u_buffer_1, q + e.zy, 0.0).x; // 1
-    */
-    float p11 = c.x;
+float getMouse() {
     float d = 0.0;
     if (u_mouse.y > 0.0) {
         vec3 ro;
@@ -60,25 +70,58 @@ float getRipple() {
             d += 0.02 * smoothstep(20.0 * screenscale, 5.0 * screenscale, length(uv * u_resolution.xy - gl_FragCoord.xy));
         }
     }
-    // The actual propagation:
-    d += -(p11 - 0.5) * 2.0 + (p10 + p01 + p21 + p12 - 2.0);
-    d *= 0.99; // damping
-    d *= step(0.1, u_time); // hacky way of clearing the buffer
-    d = d * 0.5 + 0.5;
     return d;
 }
 
 // u_buffer_0
 
+float getRipple() {
+    vec3 e = vec3(vec2(rx), 0.0);
+    vec2 q = gl_FragCoord.xy / u_resolution.xy;
+
+    vec4 c = texture2D(u_buffer_0, q, 0.0);
+    float p10 = texture2D(u_buffer_1, q - e.zy, 0.0).r;
+    float p01 = texture2D(u_buffer_1, q - e.xz, 0.0).r;
+    float p21 = texture2D(u_buffer_1, q + e.xz, 0.0).r;
+    float p12 = texture2D(u_buffer_1, q + e.zy, 0.0).r;
+    
+    float p11 = c.r;
+    float d = -(p11 - 0.5) * 2.0 + (p10 + p01 + p21 + p12 - 2.0); 
+    return d;   
+}
+
 void main() {
     float d = getRipple();
+    d += getMouse();
+    d *= 0.99; // damping
+    d *= step(0.1, u_time); // hacky way of clearing the buffer
+    d = 0.5 + d * 0.5;
     gl_FragColor = vec4(d, 0.0, 0.0, 0.0);
 }
 
 // u_buffer_1
 
+float getRipple() {
+    vec3 e = vec3(vec2(rx), 0.0);
+    vec2 q = gl_FragCoord.xy / u_resolution.xy;
+
+    vec4 c = texture2D(u_buffer_1, q, 0.0);
+    float p10 = texture2D(u_buffer_0, q - e.zy, 0.0).r;
+    float p01 = texture2D(u_buffer_0, q - e.xz, 0.0).r;
+    float p21 = texture2D(u_buffer_0, q + e.xz, 0.0).r;
+    float p12 = texture2D(u_buffer_0, q + e.zy, 0.0).r;
+
+    float p11 = c.r;
+    float d = -(p11 - 0.5) * 2.0 + (p10 + p01 + p21 + p12 - 2.0); 
+    return d;   
+}
+
 void main() {
     float d = getRipple();
+    d += getMouse();
+    d *= 0.99; // damping
+    d *= step(0.1, u_time); // hacky way of clearing the buffer
+    d = 0.5 + d * 0.5;
     gl_FragColor = vec4(d, 0.0, 0.0, 0.0);
 }
 
@@ -89,9 +132,10 @@ float DE (vec3 p) { return 1.2 * (p.y - h(p)); }
 
 void main() {
     vec2 q = gl_FragCoord.xy / u_resolution.xy;
-    vec2 qq = q * 2.0 - 1.0;
-    float eps = 0.1;
+
 #ifdef RAYMARCH
+    float eps = 0.1;
+    vec2 qq = q * 2.0 - 1.0;
     vec3 L = normalize(vec3(0.3, 0.5, 1.0));
     // raymarch the milk surface
     vec3 ro;
@@ -148,13 +192,23 @@ void main() {
 	vec2 uv =  q.xy - 0.5;
 	float distSqr = dot(uv, uv);
 	gl_FragColor.xyz *= 1.0 - 0.5 * distSqr;
+
 #else
-    float sh = 1.0 - texture2D(u_buffer_0, q).x;
-    vec3 c = vec3(
-        exp(pow(sh - 0.25, 2.0) * - 5.0), 
-        exp(pow(sh - 0.4, 2.0) * - 5.0), 
-        exp(pow(sh - 0.7, 2.0) * - 20.0)
-    );
-    gl_FragColor = vec4(c, 1.0);
+    float c = 1.0 - texture2D(u_buffer_0, q).r;
+    vec3 color;
+    color = vec3(c);
+    // color = vec3(exp(pow(c - 0.25, 2.0) * - 5.0), exp(pow(c - 0.4, 2.0) * - 5.0), exp(pow(c - 0.7, 2.0) * - 20.0));
+    gl_FragColor = vec4(color, 1.0);
 #endif
+
 }
+
+// i tried to refactor the above into an explicit solve of the wave equation, which is correct
+// for spatial sampling and temporal sampling, but the result was plagued with instabilities.
+// i guess the stability happens when the wave speed exceeds the maximum rate of propagation of
+// information (1 pixel per frame)? (theres a formal definition for this but the name eludes me
+// right now)
+// UPDATE i think the stabilities are normal for this resolution and time step, and the below
+// is probably correct. its all about the CFL condition: https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
+// float hx = HEIGHTMAPSCALE / iResolution.x;
+// float hy = HEIGHTMAPSCALE / iResolution.y;
