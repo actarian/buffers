@@ -4,32 +4,6 @@
     'use strict';
 
     var GlslCanvasWrapper = function () {
-        // TODO LOAD CREATE MULTIPLE PROGRAMS
-        /*
-        lass GLProgram {
-        constructor (vertexShader, fragmentShader) {
-            this.uniforms = {};
-            this.program = gl.createProgram();
-
-            gl.attachShader(this.program, vertexShader);
-            gl.attachShader(this.program, fragmentShader);
-            gl.linkProgram(this.program);
-
-            if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
-                throw gl.getProgramInfoLog(this.program);
-            }
-
-            const uniformCount = gl.getProgramParameter(this.program, gl.ACTIVE_UNIFORMS);
-            for (let i = 0; i < uniformCount; i++) {
-                const uniformName = gl.getActiveUniform(this.program, i).name;
-                this.uniforms[uniformName] = gl.getUniformLocation(this.program, uniformName);
-            }
-        }
-        bind () {
-            gl.useProgram(this.program);
-        }
-        }
-        */
 
         function GlslCanvasWrapper(canvas, options) {
             return new GlslCanvas(canvas, options);
@@ -40,27 +14,8 @@
         GlslCanvas.prototype.updateVariables = updateVariables;
         GlslCanvas.prototype.updateUniforms = updateUniforms;
         GlslCanvas.prototype.updateBuffers = updateBuffers;
-        GlslCanvas.prototype.uniform = uniform;
         GlslCanvas.prototype.render = render;
-        /*
-        function createFrameBuffer(gl, i, W, H) {
-            gl.activeTexture(gl.TEXTURE0 + i);
-            var texture = gl.createTexture();
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-            var buffer = gl.createFramebuffer();
-            gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
-            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-            gl.viewport(0, 0, W, H);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            console.log(W, H, i);
-            return [texture, buffer, i];
-        }
-        */
+        // GlslCanvas.prototype.uniform = uniform;
 
         function loadBuffers(buffers) {
             var glsl = this,
@@ -71,7 +26,6 @@
                 gl.useProgram(program);
                 var texture = gl.createTexture();
                 var buffer = gl.createFramebuffer();
-                var uniform = gl.getUniformLocation(program, "u_buffer_" + i);
                 gl.bindTexture(gl.TEXTURE_2D, texture);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -81,26 +35,16 @@
                 return {
                     texture: texture,
                     buffer: buffer,
-                    uniform: uniform,
-                    link: function () {
+                    draw: function () {
                         gl.useProgram(program);
                         gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
                         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-                        /*
-                        gl.bindBuffer(gl.FRAMEBUFFER, buffer);
-                        */
                         gl.viewport(0, 0, W, H);
-                        /*
-                        // draw first pass, the one which supposed to write data for the channel i
-                        // it'll use fragment shader for bufferA
-                        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-                        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-                        // pass texture as channel i
-                        */
                         gl.activeTexture(gl.TEXTURE0 + i);
                         gl.bindTexture(gl.TEXTURE_2D, texture);
-                        // draw second pass, the one with uses channel i
-                        // There 're a lot of materials about rendering to texture, for example here.
+                        // gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, 0);
+                        gl.drawArrays(gl.TRIANGLES, 0, 6);
+                        // gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
                     }
                 };
             };
@@ -109,44 +53,21 @@
             for (var key in buffers) {
                 var buffer = buffers[key];
                 var fragment = createShader(glsl, buffer.common + buffer.fragment, gl.FRAGMENT_SHADER);
-                // If Fragment shader fails load a empty one to sign the error
                 if (!fragment) {
                     fragment = createShader(glsl, 'void main(){\n\tgl_FragColor = vec4(1.0);\n}', gl.FRAGMENT_SHADER);
                     glsl.isValid = false;
                 } else {
                     glsl.isValid = true;
                 }
-                // Create and use program
                 var program = createProgram(glsl, [vertex, fragment]);
                 buffer.program = program;
-
-                // buffer.frame = createFrameBuffer(gl, i, glsl.canvas.width, glsl.canvas.height);
                 buffer.bundle = gl.bundle(program, i, glsl.canvas.width, glsl.canvas.height);
                 // console.log(i, key, buffer.common + buffer.fragment, buffer.bundle);
-
-                // console.log('buffer', buffer);
                 glsl.buffers[key] = buffer;
-                // glsl.gl.useProgram(program);
-                // Delete shaders
                 gl.deleteShader(fragment);
                 i++;
             }
             gl.deleteShader(vertex);
-            /*
-            gl.binder = function () {
-                gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]), gl.STATIC_DRAW);
-                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
-                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0, 1, 2, 0, 2, 3]), gl.STATIC_DRAW);
-                gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-                gl.enableVertexAttribArray(0);
-                return function (buffer) {
-                    gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
-                    // gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-                    gl.drawArrays(gl.TRIANGLES, 0, 6);
-                };
-            }();
-            */
         }
 
         function loadUniforms(options) {
@@ -183,14 +104,11 @@
 
             /*
             // if (glsl.nDelta > 1) {
-            // set the delta time uniform
             glsl.uniform(program, '1f', 'float', 'u_delta', glsl.variables.delta);
             // }
             */
 
             // if (glsl.nTime > 1) {
-            // set the elapsed time uniform
-            // var u_time = glsl.uniform(program, '1f', 'float', 'u_time', glsl.variables.time);
             gl.uniform1f(gl.getUniformLocation(program, 'u_time'), glsl.variables.time);
             // }
 
@@ -200,17 +118,17 @@
             glsl.uniform(program, '4f', 'float', 'u_date', glsl.variables.year, glsl.variables.month, glsl.variables.date, glsl.variables.daytime);
             // }
             */
-
-            // set the resolution uniform
-            // var u_reolution = glsl.uniform(program, '2f', 'vec2', 'u_resolution', glsl.canvas.width, glsl.canvas.height);
             gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), glsl.canvas.width, glsl.canvas.height);
 
             var i = 0;
             for (var p in glsl.buffers) {
-                gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i); // texture unit 0
+                program.buffers = program.buffers || {};
+                if (!program.buffers["u_buffer_" + i]) {
+                    program.buffers["u_buffer_" + i] = true;
+                    gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i);
+                }
                 i++;
             }
-            // console.log('updateUniforms', glsl.variables.time);
 
             /*
             glsl.texureIndex = 0;
@@ -237,6 +155,7 @@
 
         }
 
+        /*
         function uniform(program, method, type, name) {
             var glsl = this,
                 gl = glsl.gl;
@@ -254,7 +173,8 @@
                 gl[uniform.method].apply(gl, [uniform.location].concat(uniform.value));
             }
             return uniform;
-        }
+        }   
+        */
 
         function updateBuffers() {
             var glsl = this,
@@ -264,9 +184,7 @@
                     var buffer = glsl.buffers[key];
                     gl.useProgram(buffer.program);
                     glsl.updateUniforms(buffer.program, key);
-                    buffer.bundle.link();
-                    // gl.bindFramebuffer(gl.FRAMEBUFFER, buffer.bundle.buffer);
-                    gl.drawArrays(gl.TRIANGLES, 0, 6);
+                    buffer.bundle.draw();
                 }
                 gl.useProgram(glsl.program);
                 glsl.updateUniforms(glsl.program, 'main');
@@ -350,10 +268,10 @@
     };
 
     function init() {
-        getResource("shaders/buffers.glsl", function (fragment) {
+        getResource("shaders/buffers/milk.glsl", function (fragment) {
             // (?<=\/{2} u_buffer_)(\d+).*((.|\n)*?)(?=\/{2} [u_buffer|main]|\z)
             // (?<=\/{2} main).*((.|\n)*?)(?=\/{2} u_buffer|\z)
-            fragment = fragment.replace(new RegExp('(/{2} u_buffer_)(\\d+).*((.|\\n)*?)(?=/{2} [u_buffer|main]|\\z)', 'g'), function (match, name, i, fragment) {
+            fragment = fragment.replace(new RegExp('(/{2} u_buffer_)(\\d+).*((.|\\n)*?)(?=/{2} u_buffer|/{2} main|$)', 'g'), function (match, name, i, fragment) {
                 // console.log('u_buffer_.replace', arguments);
                 options.buffers['u_buffer_' + i] = {
                     fragment: fragment,
@@ -410,6 +328,7 @@
             glsl.load(options.fragment, options.vertex);
             glsl.loadBuffers(options.buffers);
             glsl.loadUniforms(options);
+
             // console.log('glsl', glsl);
             /*
             gui.load(options.uniforms);
