@@ -1,5 +1,5 @@
 #ifdef GL_ES
-    precision mediump float;
+    precision highp float;
 #endif
 
 uniform vec2 u_resolution;
@@ -60,7 +60,7 @@ vec3 getRay(in vec2 p, out vec3 pos) {
 
 float getMouse() {
     float d = 0.0;
-    if (u_mouse.y > 0.0) {
+    if (u_mouse.x > 0.0) {
         vec3 ro;
         vec3 rd = getRay(2.0 * u_mouse.xy / u_resolution.xy - 1.0, ro);
         if (rd.y < 0.0) {
@@ -75,54 +75,50 @@ float getMouse() {
 
 // u_buffer_0
 
-float getRipple() {
-    vec3 e = vec3(vec2(rx), 0.0);
-    vec2 q = gl_FragCoord.xy / u_resolution.xy;
-
-    vec4 c = texture2D(u_buffer_0, q, 0.0);
-    float p10 = texture2D(u_buffer_1, q - e.zy, 0.0).r;
-    float p01 = texture2D(u_buffer_1, q - e.xz, 0.0).r;
-    float p21 = texture2D(u_buffer_1, q + e.xz, 0.0).r;
-    float p12 = texture2D(u_buffer_1, q + e.zy, 0.0).r;
-    
-    float p11 = c.r;
-    float d = -(p11 - 0.5) * 2.0 + (p10 + p01 + p21 + p12 - 2.0); 
-    return d;   
-}
-
 void main() {
-    float d = getRipple();
-    d += getMouse();
-    d *= 0.99; // damping
-    d *= step(0.1, u_time); // hacky way of clearing the buffer
-    d = 0.5 + d * 0.5;
-    gl_FragColor = vec4(d, 0.0, 0.0, 0.0);
+    vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+    vec3 diff = vec3(vec2(1.0) / u_resolution.xy, 0.0);
+    
+    vec4 center = texture2D(u_buffer_0, uv, 0.0);
+
+    float top = texture2D(u_buffer_0, uv - diff.zy, 0.0).r;
+    float left = texture2D(u_buffer_0, uv - diff.xz, 0.0).r;
+    float right = texture2D(u_buffer_0, uv + diff.xz, 0.0).r;
+    float bottom = texture2D(u_buffer_0, uv + diff.zy, 0.0).r;
+    
+    float prev = center.g;
+    float v = -(prev - 0.5) * 2.0 + (top + left + right + bottom - 2.0);
+    // v += getMouse();
+    v += smoothstep(4.5, 0.5, length(u_mouse.xy - gl_FragCoord.xy)); // mouse
+
+    v *= 0.99999; // damping
+    //v *= step(0.1, u_time); // hacky way of clearing the buffer
+    v = 0.5 + v * 0.5;
+    gl_FragColor = vec4(v, center.r, 0.0, 0.0);
 }
 
 // u_buffer_1
 
-float getRipple() {
-    vec3 e = vec3(vec2(rx), 0.0);
-    vec2 q = gl_FragCoord.xy / u_resolution.xy;
-
-    vec4 c = texture2D(u_buffer_1, q, 0.0);
-    float p10 = texture2D(u_buffer_0, q - e.zy, 0.0).r;
-    float p01 = texture2D(u_buffer_0, q - e.xz, 0.0).r;
-    float p21 = texture2D(u_buffer_0, q + e.xz, 0.0).r;
-    float p12 = texture2D(u_buffer_0, q + e.zy, 0.0).r;
-
-    float p11 = c.r;
-    float d = -(p11 - 0.5) * 2.0 + (p10 + p01 + p21 + p12 - 2.0); 
-    return d;   
-}
-
 void main() {
-    float d = getRipple();
-    d += getMouse();
-    d *= 0.99; // damping
-    d *= step(0.1, u_time); // hacky way of clearing the buffer
-    d = 0.5 + d * 0.5;
-    gl_FragColor = vec4(d, 0.0, 0.0, 0.0);
+    vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+    vec3 diff = vec3(vec2(1.0) / u_resolution.xy, 0.0);
+    
+    vec4 center = texture2D(u_buffer_1, uv, 0.0);
+
+    float top = texture2D(u_buffer_1, uv - diff.zy, 0.0).r;
+    float left = texture2D(u_buffer_1, uv - diff.xz, 0.0).r;
+    float right = texture2D(u_buffer_1, uv + diff.xz, 0.0).r;
+    float bottom = texture2D(u_buffer_1, uv + diff.zy, 0.0).r;
+    
+    float prev = center.g;
+    float v = -(prev - 0.5) * 2.0 + (top + left + right + bottom - 2.0);
+    // v += getMouse();
+    v += smoothstep(8.0, 0.0, length(u_mouse.xy - gl_FragCoord.xy)); // mouse
+
+    v *= 0.99; // damping
+    v *= step(0.1, u_time); // hacky way of clearing the buffer
+    v = 0.5 + v * 0.5;
+    gl_FragColor = vec4(v, center.r, 0.0, 0.0);
 }
 
 // main
@@ -194,7 +190,7 @@ void main() {
 	gl_FragColor.xyz *= 1.0 - 0.5 * distSqr;
 
 #else
-    float c = 1.0 - texture2D(u_buffer_0, q).r;
+    float c = texture2D(u_buffer_0, q).r;
     vec3 color;
     color = vec3(c);
     // color = vec3(exp(pow(c - 0.25, 2.0) * - 5.0), exp(pow(c - 0.4, 2.0) * - 5.0), exp(pow(c - 0.7, 2.0) * - 20.0));

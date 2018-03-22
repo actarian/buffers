@@ -12,9 +12,9 @@
         GlslCanvas.prototype.loadBuffers = loadBuffers;
         GlslCanvas.prototype.loadUniforms = loadUniforms;
         GlslCanvas.prototype.updateVariables = updateVariables;
-        GlslCanvas.prototype.updateUniforms = updateUniforms;
-        GlslCanvas.prototype.updateBuffers = updateBuffers;
+        GlslCanvas.prototype.UpdateUniforms = UpdateUniforms;
         GlslCanvas.prototype.resizeBuffers = resizeBuffers;
+        GlslCanvas.prototype.renderGl = renderGl;
         GlslCanvas.prototype.render = render;
 
         var _setMouse = GlslCanvas.prototype.setMouse;
@@ -41,7 +41,7 @@
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
                 var textureIn = gl.createTexture();
-                gl.activeTexture(gl.TEXTURE0 + i * 2 + 1); //                   <-- in activate
+                gl.activeTexture(gl.TEXTURE0 + i * 2 + 1); //       <-- in activate
                 gl.bindTexture(gl.TEXTURE_2D, textureIn);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -52,13 +52,13 @@
                 return {
                     textureIn: textureIn,
                     textureOut: textureOut,
-                    draw: function () {
+                    render: function (W, H) {
                         gl.useProgram(program);
                         gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
                         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textureOut, 0);
-                        gl.viewport(0, 0, W, H);
                         gl.activeTexture(gl.TEXTURE0 + i * 2); //           <-- out activate
                         gl.bindTexture(gl.TEXTURE_2D, textureOut); //       <-- out bind
+                        gl.viewport(0, 0, W, H);
                         gl.drawArrays(gl.TRIANGLES, 0, 6); //               <-- out draw
                         gl.activeTexture(gl.TEXTURE0 + i * 2 + 1); //                   <-- in activate
                         gl.bindTexture(gl.TEXTURE_2D, textureIn); //                    <-- in bind
@@ -133,80 +133,6 @@
             }
         }
 
-        function updateVariables() {
-            var glsl = this,
-                gl = glsl.gl;
-            var date = new Date();
-            var now = performance.now();
-            glsl.variables = glsl.variables || {};
-            glsl.variables.prev = glsl.variables.prev || now;
-            glsl.variables.delta = (now - glsl.variables.prev) / 1000.0;
-            glsl.variables.prev = now;
-            glsl.variables.load = glsl.timeLoad;
-            glsl.variables.time = (now - glsl.timeLoad) / 1000.0;
-            glsl.variables.year = date.getFullYear();
-            glsl.variables.month = date.getMonth();
-            glsl.variables.date = date.getDate();
-            glsl.variables.daytime = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds() + date.getMilliseconds() * 0.001;
-        }
-
-        function updateUniforms(program, key) {
-            var glsl = this,
-                gl = glsl.gl;
-
-            /*
-            // if (glsl.nDelta > 1) {
-            glsl.uniform(program, '1f', 'float', 'u_delta', glsl.variables.delta);
-            // }
-            */
-
-            // if (glsl.nTime > 1) {
-            gl.uniform1f(gl.getUniformLocation(program, 'u_time'), glsl.variables.time);
-            // }
-
-            /*
-            // if (glsl.nDate) {
-            // Set date uniform: year/month/day/time_in_sec
-            glsl.uniform(program, '4f', 'float', 'u_date', glsl.variables.year, glsl.variables.month, glsl.variables.date, glsl.variables.daytime);
-            // }
-            */
-            gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), glsl.canvas.width, glsl.canvas.height);
-
-            var i = 0;
-            for (var p in glsl.buffers) {
-                program.buffers = program.buffers || {};
-                if (!program.buffers["u_buffer_" + i]) {
-                    program.buffers["u_buffer_" + i] = true;
-                    gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i * 2 + 1);
-                }
-                i++;
-            }
-
-            /*
-            glsl.texureIndex = 0;
-            for (var key in glsl.textures) {
-                glsl.uniformTexture(key, {
-                    filtering: 'mipmap',
-                    repeat: true,
-                });
-            }
-            */
-
-            /*
-            var i = 0,
-                au = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
-            while (i < au) {
-                var info = gl.getActiveUniform(program, i);
-                console.log('info', key, info);
-                i++;
-            }
-            console.log('status', key, 'link', gl.getProgramParameter(program, gl.LINK_STATUS), 'validate', gl.getProgramParameter(program, gl.VALIDATE_STATUS));
-            */
-
-            // console.log(key, 'u_time', u_time.location);
-
-        }
-
         function setMouse(mouse) {
             // _setMouse(mouse);
             var glsl = this,
@@ -228,35 +154,106 @@
             }
         }
 
-        function updateBuffers() {
+        function updateVariables() {
             var glsl = this,
                 gl = glsl.gl;
+            var date = new Date();
+            var now = performance.now();
+            glsl.variables = glsl.variables || {};
+            glsl.variables.prev = glsl.variables.prev || now;
+            glsl.variables.delta = (now - glsl.variables.prev) / 1000.0;
+            glsl.variables.prev = now;
+            glsl.variables.load = glsl.timeLoad;
+            glsl.variables.time = (now - glsl.timeLoad) / 1000.0;
+            glsl.variables.year = date.getFullYear();
+            glsl.variables.month = date.getMonth();
+            glsl.variables.date = date.getDate();
+            glsl.variables.daytime = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds() + date.getMilliseconds() * 0.001;
+        }
+
+        function UpdateUniforms(program, key) {
+            var glsl = this,
+                gl = glsl.gl;
+
+            gl.useProgram(program);
+
+            gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), glsl.canvas.width, glsl.canvas.height);
+
+            if (glsl.nTime > 1) {
+                gl.uniform1f(gl.getUniformLocation(program, 'u_time'), glsl.variables.time);
+            }
+
+            if (glsl.nDelta > 1) {
+                gl.uniform1f(gl.getUniformLocation(program, 'u_delta'), glsl.variables.delta);
+            }
+
+            if (glsl.nDate) {
+                // Set date uniform: year/month/day/time_in_sec
+                gl.uniform4f(gl.getUniformLocation(program, 'u_date'), glsl.variables.year, glsl.variables.month, glsl.variables.date, glsl.variables.daytime);
+            }
+
+            /*
+            glsl.texureIndex = 0;
+            for (var key in glsl.textures) {
+                glsl.uniformTexture(key, {
+                    filtering: 'mipmap',
+                    repeat: true,
+                });
+            }
+            */
+
+            var i = 0;
+            for (var key in glsl.buffers) {
+                program.buffers = program.buffers || {};
+                if (!program.buffers["u_buffer_" + i]) {
+                    program.buffers["u_buffer_" + i] = true;
+                    gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i * 2 + 1);
+                }
+                i++;
+            }
+
+            /*
+            var i = 0,
+                au = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+            while (i < au) {
+                var info = gl.getActiveUniform(program, i);
+                console.log('info', key, info);
+                i++;
+            }
+            console.log('status', key, 'link', gl.getProgramParameter(program, gl.LINK_STATUS), 'validate', gl.getProgramParameter(program, gl.VALIDATE_STATUS));
+            */
+
+            // console.log(key, 'u_time', u_time.location);
+
+        }
+
+        function renderGl() {
+            var glsl = this,
+                gl = glsl.gl, W = gl.canvas.width, H = gl.canvas.height;
+            glsl.updateVariables();
+            gl.viewport(0, 0, W, H);
             if (glsl.buffers && Object.keys(glsl.buffers).length > 0) {
                 for (var key in glsl.buffers) {
                     var buffer = glsl.buffers[key];
-                    gl.useProgram(buffer.program);
-                    glsl.updateUniforms(buffer.program, key);
-                    buffer.bundle.draw();
+                    glsl.UpdateUniforms(buffer.program, key);
+                    buffer.bundle.render(W, H);
                 }
-                gl.useProgram(glsl.program);
-                glsl.updateUniforms(glsl.program, 'main');
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
             }
+            glsl.UpdateUniforms(glsl.program, 'main');
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
         }
 
         function render() {
             var glsl = this,
                 gl = glsl.gl;
             glsl.visible = isCanvasVisible(glsl.canvas);
-            glsl.animated = true;
+            // glsl.animated = true;
             if (glsl.forceRender || (glsl.animated && glsl.visible && !glsl.paused)) {
-                glsl.updateVariables();
-                glsl.updateBuffers();
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
-                glsl.trigger('render', {});
+                glsl.renderGl();
                 glsl.change = false;
                 glsl.forceRender = false;
+                glsl.trigger('render', {});
             }
         }
 
@@ -361,7 +358,7 @@
         glsl.animated = true;
         glsl.on('error', onGlslError);
         glsl.on('render', function () {
-            glsl.forceRender = true;
+            // glsl.forceRender = true;
         });
 
         load();
