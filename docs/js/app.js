@@ -9,6 +9,10 @@
             return new GlslCanvas(canvas, options);
         }
 
+        GlslCanvas.prototype.TEXTURE_COUNT = 0;
+        GlslCanvas.prototype.BUFFER_COUNT = 0;
+        GlslCanvas.prototype.createBuffer = createBuffer;
+        GlslCanvas.prototype.createSwappableBuffer = createSwappableBuffer;
         GlslCanvas.prototype.loadBuffers = loadBuffers;
         GlslCanvas.prototype.loadUniforms = loadUniforms;
         GlslCanvas.prototype.updateVariables = updateVariables;
@@ -25,7 +29,89 @@
 
         // GlslCanvas.prototype.uniform = uniform;
 
+        function createBuffer(W, H) {
+            var glsl = this,
+                gl = glsl.gl,
+                index = glsl.TEXTURE_COUNT + glsl.BUFFER_COUNT;
+            glsl.BUFFER_COUNT++;
+            gl.activeTexture(gl.TEXTURE0 + index);
+            var texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            var buffer = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+            gl.viewport(0, 0, w, h);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            return {
+                index: index,
+                texture: texture,
+                buffer: buffer,
+            };
+        }
+
+        function createSwappableBuffer(W, H) {
+            var glsl = this,
+                gl = glsl.gl;
+            var input = glsl.createBuffer(W, H);
+            var output = glsl.createBuffer(W, H);
+            return {
+                input: input,
+                output: output,
+                swap: function () {
+                    var temp = input;
+                    input = output;
+                    output = temp;
+                    this.input = input;
+                    this.output = output;
+                },
+                render: function (W, H, program) {
+                    gl.useProgram(program);
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, input.buffer);
+                    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, output.texture, 0);
+                    gl.activeTexture(output.index); //           <-- out activate
+                    gl.bindTexture(gl.TEXTURE_2D, output.texture); //       <-- out bind
+                    gl.viewport(0, 0, W, H);
+                    gl.drawArrays(gl.TRIANGLES, 0, 6); //               <-- out draw
+                    gl.activeTexture(input.index); //                   <-- in activate
+                    gl.bindTexture(gl.TEXTURE_2D, input.texture); //                    <-- in bind
+                    gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, W, H, 0); // <-- in copy
+                    this.swap();
+                },
+            };
+        }
+
         function loadBuffers(buffers) {
+            var glsl = this,
+                gl = glsl.gl,
+                i = 0;
+            glsl.buffers = {};
+            var vertex = createShader(glsl, glsl.vertexString, gl.VERTEX_SHADER);
+            for (var key in buffers) {
+                var buffer = buffers[key];
+                var fragment = createShader(glsl, buffer.common + buffer.fragment, gl.FRAGMENT_SHADER);
+                if (!fragment) {
+                    fragment = createShader(glsl, 'void main(){\n\tgl_FragColor = vec4(1.0);\n}', gl.FRAGMENT_SHADER);
+                    glsl.isValid = false;
+                } else {
+                    glsl.isValid = true;
+                }
+                var program = createProgram(glsl, [vertex, fragment]);
+                buffer.program = program;
+                buffer.bundle = createSwappableBuffer(glsl.canvas.width, glsl.canvas.height);
+                // console.log(i, key, buffer.common + buffer.fragment, buffer.bundle);
+                glsl.buffers[key] = buffer;
+                gl.deleteShader(fragment);
+                i++;
+            }
+            gl.deleteShader(vertex);
+        }
+
+        function _loadBuffers(buffers) {
             var glsl = this,
                 gl = glsl.gl,
                 i = 0;
@@ -62,7 +148,7 @@
                         gl.drawArrays(gl.TRIANGLES, 0, 6); //               <-- out draw
                         gl.activeTexture(gl.TEXTURE0 + i * 2 + 1); //                   <-- in activate
                         gl.bindTexture(gl.TEXTURE_2D, textureIn); //                    <-- in bind
-                        gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, W, H, 0); // <-- in copy
+                        gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, W, H, 0); // <-- in copy                        
                     }
                 };
             };
@@ -91,9 +177,11 @@
         function resize() {
             var glsl = this;
             var flag = _resize.apply(glsl);
+            /*
             if (flag) {
                 glsl.resizeBuffers();
             }
+            */
             return flag;
         }
 
@@ -204,13 +292,21 @@
 
             var i = 0;
             for (var key in glsl.buffers) {
-                program.buffers = program.buffers || {};
-                if (!program.buffers["u_buffer_" + i]) {
-                    program.buffers["u_buffer_" + i] = true;
-                    gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i * 2 + 1);
-                }
+                gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), glsl.buffers[key].bundle.input.index);
                 i++;
             }
+
+            /*
+             var i = 0;
+             for (var key in glsl.buffers) {
+                 program.buffers = program.buffers || {};
+                 if (!program.buffers["u_buffer_" + i]) {
+                     program.buffers["u_buffer_" + i] = true;
+                     gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i * 2 + 1);
+                 }
+                 i++;
+             }
+             */
 
             /*
             var i = 0,
@@ -229,14 +325,16 @@
 
         function renderGl() {
             var glsl = this,
-                gl = glsl.gl, W = gl.canvas.width, H = gl.canvas.height;
+                gl = glsl.gl,
+                W = gl.canvas.width,
+                H = gl.canvas.height;
             glsl.updateVariables();
             gl.viewport(0, 0, W, H);
             if (glsl.buffers && Object.keys(glsl.buffers).length > 0) {
                 for (var key in glsl.buffers) {
                     var buffer = glsl.buffers[key];
                     glsl.UpdateUniforms(buffer.program, key);
-                    buffer.bundle.render(W, H);
+                    buffer.bundle.render(W, H, buffer.program);
                 }
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             }
@@ -298,6 +396,19 @@
                 gl.deleteProgram(program);
                 return null;
             }
+            program.blit = function () {
+                gl.useProgram(program);
+                gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]), gl.STATIC_DRAW);
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0, 1, 2, 0, 2, 3]), gl.STATIC_DRAW);
+                gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(0);
+                return function (destination) {
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, destination);
+                    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+                };
+            }();
             return program;
         }
 
