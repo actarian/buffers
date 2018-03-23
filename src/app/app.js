@@ -29,24 +29,27 @@
 
         // GlslCanvas.prototype.uniform = uniform;
 
-        function createBuffer(W, H) {
+        function createBuffer(W, H, program) {
             var glsl = this,
                 gl = glsl.gl,
                 index = glsl.TEXTURE_COUNT + glsl.BUFFER_COUNT;
             glsl.BUFFER_COUNT++;
-            gl.activeTexture(gl.TEXTURE0 + index);
             var texture = gl.createTexture();
+            gl.activeTexture(gl.TEXTURE0 + index);
             gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
             var buffer = gl.createFramebuffer();
-            gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
+            // gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
+            /*
             gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-            gl.viewport(0, 0, w, h);
+            gl.viewport(0, 0, W, H);
             gl.clear(gl.COLOR_BUFFER_BIT);
+            */
+            console.log('createBuffer', index);
             return {
                 index: index,
                 texture: texture,
@@ -54,11 +57,11 @@
             };
         }
 
-        function createSwappableBuffer(W, H) {
+        function createSwappableBuffer(W, H, program) {
             var glsl = this,
                 gl = glsl.gl;
-            var input = glsl.createBuffer(W, H);
-            var output = glsl.createBuffer(W, H);
+            var input = glsl.createBuffer(W, H, program);
+            var output = glsl.createBuffer(W, H, program);
             return {
                 input: input,
                 output: output,
@@ -69,18 +72,26 @@
                     this.input = input;
                     this.output = output;
                 },
-                render: function (W, H, program) {
+                render: function (W, H, program, name) {
                     gl.useProgram(program);
+                    // gl.uniform1i(gl.getUniformLocation(program, name), input.index); // removable
+                    gl.viewport(0, 0, W, H); // removable
                     gl.bindFramebuffer(gl.FRAMEBUFFER, input.buffer);
                     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, output.texture, 0);
-                    gl.activeTexture(output.index); //           <-- out activate
-                    gl.bindTexture(gl.TEXTURE_2D, output.texture); //       <-- out bind
-                    gl.viewport(0, 0, W, H);
-                    gl.drawArrays(gl.TRIANGLES, 0, 6); //               <-- out draw
-                    gl.activeTexture(input.index); //                   <-- in activate
-                    gl.bindTexture(gl.TEXTURE_2D, input.texture); //                    <-- in bind
-                    gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, W, H, 0); // <-- in copy
+                    gl.drawArrays(gl.TRIANGLES, 0, 6);
+                    /*
+                    gl.activeTexture(gl.TEXTURE0 + input.index);
+                    gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, W, H, 0);
+                    */
+                    // gl.activeTexture(gl.TEXTURE0 + output.index);
+                    // gl.clear(gl.COLOR_BUFFER_BIT);
+                    /*
+                    gl.uniform1i(gl.getUniformLocation(program, name), output.index);
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, output.buffer);
+                    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, input.texture, 0);
+                    gl.drawArrays(gl.TRIANGLES, 0, 6);
                     this.swap();
+                    */
                 },
             };
         }
@@ -101,8 +112,9 @@
                     glsl.isValid = true;
                 }
                 var program = createProgram(glsl, [vertex, fragment]);
+                buffer.name = 'u_buffer_' + i;
                 buffer.program = program;
-                buffer.bundle = createSwappableBuffer(glsl.canvas.width, glsl.canvas.height);
+                buffer.bundle = glsl.createSwappableBuffer(glsl.canvas.width, glsl.canvas.height, program);
                 // console.log(i, key, buffer.common + buffer.fragment, buffer.bundle);
                 glsl.buffers[key] = buffer;
                 gl.deleteShader(fragment);
@@ -290,23 +302,22 @@
             }
             */
 
-            var i = 0;
             for (var key in glsl.buffers) {
-                gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), glsl.buffers[key].bundle.input.index);
-                i++;
+                var buffer = glsl.buffers[key];
+                gl.uniform1i(gl.getUniformLocation(program, buffer.name), buffer.bundle.input.index);
             }
 
             /*
-             var i = 0;
-             for (var key in glsl.buffers) {
-                 program.buffers = program.buffers || {};
-                 if (!program.buffers["u_buffer_" + i]) {
-                     program.buffers["u_buffer_" + i] = true;
-                     gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i * 2 + 1);
-                 }
-                 i++;
-             }
-             */
+            var i = 0;
+            for (var key in glsl.buffers) {
+                program.buffers = program.buffers || {};
+                if (!program.buffers["u_buffer_" + i]) {
+                    program.buffers["u_buffer_" + i] = true;
+                    gl.uniform1i(gl.getUniformLocation(program, "u_buffer_" + i), i * 2 + 1);
+                }
+                i++;
+            }
+            */
 
             /*
             var i = 0,
@@ -334,7 +345,9 @@
                 for (var key in glsl.buffers) {
                     var buffer = glsl.buffers[key];
                     glsl.UpdateUniforms(buffer.program, key);
-                    buffer.bundle.render(W, H, buffer.program);
+                    buffer.bundle.render(W, H, buffer.program, buffer.name);
+                    // buffer.program.blit(buffer.bundle.output.buffer);
+                    buffer.bundle.swap();
                 }
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             }
@@ -396,6 +409,7 @@
                 gl.deleteProgram(program);
                 return null;
             }
+            /*
             program.blit = function () {
                 gl.useProgram(program);
                 gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
@@ -405,10 +419,23 @@
                 gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
                 gl.enableVertexAttribArray(0);
                 return function (destination) {
+                    gl.useProgram(program);
                     gl.bindFramebuffer(gl.FRAMEBUFFER, destination);
-                    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+                    // gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+                    gl.drawArrays(gl.TRIANGLES, 0, 6);
                 };
             }();
+            */
+            /*
+            var numAttribs = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
+            for (var i = 0; i < numAttribs; ++i) {
+                var attribInfo = gl.getActiveAttrib(program, i);
+                if (!attribInfo) {
+                    break;
+                }
+                console.log(gl.getAttribLocation(program, attribInfo.name), attribInfo.name);
+            }
+            */
             return program;
         }
 
