@@ -78,23 +78,18 @@ float getMouse() {
 void main() {
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
     vec3 diff = vec3(vec2(1.0) / u_resolution.xy, 0.0);
-    
     vec4 center = texture2D(u_buffer_0, uv, 0.0);
-
     float top = texture2D(u_buffer_0, uv - diff.zy, 0.0).r;
     float left = texture2D(u_buffer_0, uv - diff.xz, 0.0).r;
     float right = texture2D(u_buffer_0, uv + diff.xz, 0.0).r;
     float bottom = texture2D(u_buffer_0, uv + diff.zy, 0.0).r;
-    
-    float v = -(center.g - 0.5) * 2.0 + (top + left + right + bottom - 2.0);
-    // v += getMouse();
-
-    v += smoothstep(4.5, 0.5, length(u_mouse.xy - gl_FragCoord.xy)); // mouse
-    v *= 0.99; // damping
-    v *= step(0.1, u_time); // hacky way of clearing the buffer
-    v = 0.5 + v * 0.5;
-
-    gl_FragColor = vec4(v, center.r, 0.0, 0.0);
+    float red = -(center.g - 0.5) * 2.0 + (top + left + right + bottom - 2.0);
+    // red += getMouse();
+    red += smoothstep(4.5, 0.5, length(u_mouse.xy - gl_FragCoord.xy)); // mouse
+    red *= 0.99; // damping
+    red *= step(0.1, u_time); // hacky way of clearing the buffer
+    red = 0.5 + red * 0.5;
+    gl_FragColor = vec4(red, center.r, 0.0, 0.0);
 }
 
 /* u_buffer_1
@@ -102,19 +97,15 @@ void main() {
 void main() {
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
     vec3 diff = vec3(vec2(1.0) / u_resolution.xy, 0.0);
-    
     vec4 center = texture2D(u_buffer_1, uv, 0.0);
-
     float top = texture2D(u_buffer_1, uv - diff.zy, 0.0).r;
     float left = texture2D(u_buffer_1, uv - diff.xz, 0.0).r;
     float right = texture2D(u_buffer_1, uv + diff.xz, 0.0).r;
     float bottom = texture2D(u_buffer_1, uv + diff.zy, 0.0).r;
-    
     float prev = center.g;
     float v = -(prev - 0.5) * 2.0 + (top + left + right + bottom - 2.0);
     // v += getMouse();
     v += smoothstep(8.0, 0.0, length(u_mouse.xy - gl_FragCoord.xy)); // mouse
-
     v *= 0.99; // damping
     v *= step(0.1, u_time); // hacky way of clearing the buffer
     v = 0.5 + v * 0.5;
@@ -124,12 +115,11 @@ void main() {
 
 // main
 
-float h (vec3 p) { return 4.0 * texture2D(u_buffer_0, p.xz / HEIGHTMAPSCALE + 0.5, 0.0).x; }
+float h (vec3 p) { return 4.0 * texture2D(u_buffer_0, 0.5 + p.xz / HEIGHTMAPSCALE, 0.0).x; }
 float DE (vec3 p) { return 1.2 * (p.y - h(p)); }
 
 void main() {
     vec2 q = gl_FragCoord.xy / u_resolution.xy;
-
 #ifdef RAYMARCH
     float eps = 0.1;
     vec2 qq = q * 2.0 - 1.0;
@@ -156,12 +146,12 @@ void main() {
 		d = dNext;
     }
     float znear = 95.0;
-    float zfar  = 130.0;
+    float zfar  = 230.0;
     // hit the milk
     if (t < zfar) {
     // if (d < eps) { // just assume always hit, turns out its hard to see error from this
         vec3 p = ro + t * rd;
-	    gl_FragColor = vec4(texture2D(u_buffer_0, p.xz / HEIGHTMAPSCALE + 0.5, 0.0).x);
+	    gl_FragColor = vec4(texture2D(u_buffer_0, 0.5 + p.xz / HEIGHTMAPSCALE, 0.0).x);
         // finite difference normal
         float h0 = h(p);
         vec2 dd = vec2(0.01, 0.0);
@@ -189,15 +179,13 @@ void main() {
 	vec2 uv =  q.xy - 0.5;
 	float distSqr = dot(uv, uv);
 	gl_FragColor.xyz *= 1.0 - 0.5 * distSqr;
-
 #else
     float c = texture2D(u_buffer_0, q).r;
     vec3 color;
-    color = vec3(c) + vec3(0.1, 0.0, 0.0);
+    color = vec3(c);
     // color = vec3(exp(pow(c - 0.25, 2.0) * - 5.0), exp(pow(c - 0.4, 2.0) * - 5.0), exp(pow(c - 0.7, 2.0) * - 20.0));
     gl_FragColor = vec4(color, 1.0);
 #endif
-
 }
 
 // i tried to refactor the above into an explicit solve of the wave equation, which is correct
