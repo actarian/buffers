@@ -99,7 +99,8 @@ body {
 	}
 }
 
-.btn-create {
+.btn-create,
+.btn-download {
 	-webkit-appearance: none;
 	background: $create;
 	color: $text;
@@ -118,6 +119,17 @@ body {
 		background: darken($create, 5%);
 		box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
 	}
+}
+
+.btn-download {
+	display: inline-block;
+	position: absolute;
+	z-index: 10;
+	background: #333;
+	bottom: 10px;
+	left: 10px;
+	padding: 8px;
+	border-radius: 3px;
 }
 
 .errors-content {
@@ -211,9 +223,9 @@ body {
 			visibility: hidden;
 		}
 	}
-
 	&:not(.idle):hover {
-		.tools, .dg {
+		.tools,
+		.dg {
 			opacity: 1;
 		}
 	}

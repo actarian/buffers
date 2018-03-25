@@ -40,21 +40,21 @@ vec3 getRay(in vec2 p, out vec3 pos) {
     float xoff = radius * cos(theta);
     float zoff = radius * sin(theta);
     pos = vec3(xoff, 20.0, zoff);
-     
+
     // camera target
     vec3 target = vec3(0.0, 0.0, 0.0);
-     
+
     // camera frame
     vec3 fo = normalize(target - pos);
     vec3 ri = normalize(vec3(fo.z, 0.0, - fo.x));
     vec3 up = normalize(cross(fo, ri));
-     
+
     // multiplier to emulate a fov control
     float fov = 0.5;
-	
+
     // ray direction
     vec3 ray = normalize(fo + fov * p.x * ri + fov * p.y * up);
-	
+
 	return ray;
 }
 
@@ -97,19 +97,18 @@ void main() {
 void main() {
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
     vec3 diff = vec3(vec2(1.0) / u_resolution.xy, 0.0);
-    vec4 center = texture2D(u_buffer_1, uv, 0.0);
+    vec4 center = texture2D(u_buffer_0, uv, 0.0);
     float top = texture2D(u_buffer_1, uv - diff.zy, 0.0).r;
     float left = texture2D(u_buffer_1, uv - diff.xz, 0.0).r;
     float right = texture2D(u_buffer_1, uv + diff.xz, 0.0).r;
     float bottom = texture2D(u_buffer_1, uv + diff.zy, 0.0).r;
-    float prev = center.g;
-    float v = -(prev - 0.5) * 2.0 + (top + left + right + bottom - 2.0);
-    // v += getMouse();
-    v += smoothstep(8.0, 0.0, length(u_mouse.xy - gl_FragCoord.xy)); // mouse
-    v *= 0.99; // damping
-    v *= step(0.1, u_time); // hacky way of clearing the buffer
-    v = 0.5 + v * 0.5;
-    gl_FragColor = vec4(v, center.r, 0.0, 0.0);
+    float red = -(center.g - 0.5) * 2.0 + (top + left + right + bottom - 2.0);
+    // red += getMouse();
+    red += smoothstep(4.5, 0.5, length(u_mouse.xy - gl_FragCoord.xy)); // mouse
+    red *= 0.99; // damping
+    red *= step(0.1, u_time); // hacky way of clearing the buffer
+    red = 0.5 + red * 0.5;
+    gl_FragColor = vec4(red, center.r, 0.0, 0.0);
 }
 */
 

@@ -2,7 +2,9 @@
         "inputFiles": [
             "bower_components/glslCanvas/build/GlslCanvas.js",
             "bower_components/stats.js/build/stats.min.js",
-            "bower_components/dat.gui/build/dat.gui.js"
+            "bower_components/dat.gui/build/dat.gui.js",
+            "bower_components/FileSaver.js/FileSaver.js",
+            "bower_components/jsZip/dist/jszip.js"
         ],
         "outputFileName": "docs/js/vendors.js",
         "minify": {
@@ -29,6 +31,7 @@
     },
     {
         "inputFiles": [
+            "src/app/services/canvas/canvas.service.js",
             "src/app/app.js"
         ],
         "outputFileName": "docs/js/app.js",
