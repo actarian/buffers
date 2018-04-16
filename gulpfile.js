@@ -38,37 +38,45 @@ gulp.task('compile:sass', function () {
 gulp.task('compile', ['compile:sass']);
 
 // BUNDLE
+
+function doCssBundle(glob, bundle) {
+	return glob
+		.pipe(plumber())
+		.pipe(concat(bundle.outputFileName))
+		.pipe(gulp.dest('.'))
+		.pipe(gulpif(bundle.minify && bundle.minify.enabled, cssmin()))
+		.pipe(rename({
+			extname: '.min.css'
+		}))
+		.pipe(gulp.dest('.'));
+}
 gulp.task('bundle:css', function () {
 	var tasks = getBundles('.css').map(function (bundle) {
-		return gulp.src(bundle.inputFiles, {
-				base: '.'
-			})
-			.pipe(plumber())
-			.pipe(concat(bundle.outputFileName))
-			.pipe(gulp.dest('.'))
-			.pipe(gulpif(bundle.minify && bundle.minify.enabled, cssmin()))
-			.pipe(rename({
-				extname: '.min.css'
-			}))
-			.pipe(gulp.dest('.'));
+		return doCssBundle(gulp.src(bundle.inputFiles, {
+			base: '.'
+		}), bundle);
 	});
 	return merge(tasks);
 });
+
+function doJsBundle(glob, bundle) {
+	return glob
+		.pipe(plumber())
+		.pipe(concat(bundle.outputFileName))
+		.pipe(gulp.dest('.'))
+		.pipe(sourcemaps.init())
+		.pipe(gulpif(bundle.minify && bundle.minify.enabled, uglify()))
+		.pipe(rename({
+			extname: '.min.js'
+		}))
+		.pipe(sourcemaps.write('.'))
+		.pipe(gulp.dest('.'));
+}
 gulp.task('bundle:js', function () {
 	var tasks = getBundles('.js').map(function (bundle) {
-		return gulp.src(bundle.inputFiles, {
-				base: '.'
-			})
-			.pipe(plumber())
-			.pipe(concat(bundle.outputFileName))
-			.pipe(gulp.dest('.'))
-			.pipe(sourcemaps.init())
-			.pipe(gulpif(bundle.minify && bundle.minify.enabled, uglify()))
-			.pipe(rename({
-				extname: '.min.js'
-			}))
-			.pipe(sourcemaps.write('.'))
-			.pipe(gulp.dest('.'));
+		return doJsBundle(gulp.src(bundle.inputFiles, {
+			base: '.'
+		}), bundle);
 	});
 	return merge(tasks);
 });
@@ -169,10 +177,18 @@ gulp.task('watch', function (done) {
 	});
 	*/
 	getBundles('.css').forEach(function (bundle) {
-		gulp.watch(bundle.inputFiles, ['bundle:css']).on('change', log);
+		gulp.watch(bundle.inputFiles, function () {
+			return doCssBundle(gulp.src(bundle.inputFiles, {
+				base: '.'
+			}), bundle);
+		}).on('change', log);
 	});
 	getBundles('.js').forEach(function (bundle) {
-		gulp.watch(bundle.inputFiles, ['bundle:js']).on('change', log);
+		gulp.watch(bundle.inputFiles, function () {
+			return doJsBundle(gulp.src(bundle.inputFiles, {
+				base: '.'
+			}), bundle);
+		}).on('change', log);
 	});
 	gulp.watch('./partials/**/*.html', ['bundle:partials']).on('change', log);
 	gulp.watch('./src/snippets/**/*.glsl', ['bundle:snippets']).on('change', log);

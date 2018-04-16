@@ -15,8 +15,6 @@
             var source = fragment;
             var offset;
             options.main = null;
-            // (?<=\/{2} u_buffer_)(\d+).*((.|\n)*?)(?=\/{2} [u_buffer|main]|\z)
-            // (?<=\/{2} main).*((.|\n)*?)(?=\/{2} u_buffer|\z)
             fragment = fragment.replace(new RegExp('(/{2} u_buffer_)(\\d+).*((.|[\\r\\n]+)*?)(?=/{2} u_buffer|/{2} main|$)', 'g'), function (match, name, i, fragment, end, offset) {
                 // console.log('u_buffer_.replace', arguments);
                 offset = source.substr(0, offset).split('\n').length;
